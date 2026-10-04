@@ -1,0 +1,122 @@
+[
+  {
+    "country": "jp",
+    "country_name": "日本（にほん）",
+    "name": "すし",
+    "image": "assets/food_jp_sushi.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "jp",
+    "country_name": "日本（にほん）",
+    "name": "おにぎり",
+    "image": "assets/food_jp_onigiri.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "jp",
+    "country_name": "日本（にほん）",
+    "name": "てんぷら",
+    "image": "assets/food_jp_tempura.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "us",
+    "country_name": "アメリカ",
+    "name": "ハンバーガー",
+    "image": "assets/food_us_burger.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "us",
+    "country_name": "アメリカ",
+    "name": "ホットドッグ",
+    "image": "assets/food_us_hotdog.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "us",
+    "country_name": "アメリカ",
+    "name": "バーベキュー",
+    "image": "assets/food_us_bbq.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "cn",
+    "country_name": "中国（ちゅうごく）",
+    "name": "ぎょうざ",
+    "image": "assets/food_cn_gyoza.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "cn",
+    "country_name": "中国（ちゅうごく）",
+    "name": "チャーハン",
+    "image": "assets/food_cn_fried_rice.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "cn",
+    "country_name": "中国（ちゅうごく）",
+    "name": "マーボーどうふ",
+    "image": "assets/food_cn_mapo.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "in",
+    "country_name": "インド",
+    "name": "カレー＋ナン",
+    "image": "assets/food_in_curry_naan.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "in",
+    "country_name": "インド",
+    "name": "タンドリーチキン",
+    "image": "assets/food_in_tandoori.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "in",
+    "country_name": "インド",
+    "name": "ビリヤニ",
+    "image": "assets/food_in_biryani.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "th",
+    "country_name": "タイ",
+    "name": "ガパオライス",
+    "image": "assets/food_th_gapao.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "th",
+    "country_name": "タイ",
+    "name": "トムヤムクン",
+    "image": "assets/food_th_tomyum.png",
+    "width": 1254,
+    "height": 1254
+  },
+  {
+    "country": "th",
+    "country_name": "タイ",
+    "name": "パッタイ",
+    "image": "assets/food_th_padthai.png",
+    "width": 1254,
+    "height": 1254
+  }
+]
