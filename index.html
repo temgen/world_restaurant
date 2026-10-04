@@ -34,24 +34,28 @@
 
   /* game */
   #gameScreen{flex-direction:column;background:#eee5d7;position:relative}
-  #hud{height:9.5dvh;min-height:62px;display:flex;align-items:center;gap:12px;padding:8px 14px;background:#fffdf7;border-bottom:2px solid #d6c9b7;z-index:20}
+  #hud{height:9.5dvh;min-height:62px;flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:8px 14px;background:#fffdf7;border-bottom:2px solid #d6c9b7;z-index:20}
   .hud-title{font-size:clamp(18px,2vw,28px);font-weight:900;white-space:nowrap}
   .hud-box{background:#f6efe5;border-radius:14px;padding:8px 14px;font-weight:900;font-size:clamp(15px,1.6vw,22px);white-space:nowrap}
   .hud-spacer{flex:1}
   #backBtn{border:none;border-radius:14px;padding:10px 18px;background:#d8d1c7;font-weight:900;font-size:clamp(14px,1.4vw,20px);cursor:pointer}
 
-  /* 横から見たレストラン：生成した背景画像をそのまま使用 */
+  /* レストランは1448×1086の固定座標ステージ。背景・人物・座席を同じ倍率で拡大縮小する。 */
   #restaurant{
-    position:relative;height:63.5dvh;min-height:330px;overflow:hidden;
-    background-image:linear-gradient(rgba(255,255,255,.02),rgba(255,255,255,.02)),url("assets/restaurant_bg.jpg");
-    background-size:100% 100%;background-position:center;background-repeat:no-repeat;
+    position:relative;flex:1 1 auto;min-height:0;overflow:hidden;background:#d9c7ad;
   }
-  /* 背景画像自体に入口・机・椅子が描かれているので、HTML側では透明な座席だけを重ねる */
-  #entrance{position:absolute;left:0;top:0;width:18%;height:100%;pointer-events:none;z-index:1}
+  #stage{
+    position:absolute;left:0;top:0;width:1448px;height:1086px;transform-origin:0 0;
+    background-image:linear-gradient(rgba(255,255,255,.02),rgba(255,255,255,.02)),url("assets/restaurant_bg.jpg");
+    background-size:1448px 1086px;background-position:0 0;background-repeat:no-repeat;
+    will-change:transform;
+  }
+  /* 背景画像の机・椅子に対し、座席の足元座標をpxで固定する。 */
+  #entrance{position:absolute;left:0;top:0;width:180px;height:600px;pointer-events:none;z-index:1}
   #tables{position:absolute;inset:0;z-index:4;pointer-events:none}
   .table-wrap{position:absolute;inset:0;pointer-events:none}
   .seat{
-    position:absolute;bottom:38%;width:12%;height:58%;
+    position:absolute;width:230px;height:320px;transform:translateX(-50%);
     display:flex;align-items:flex-end;justify-content:center;
     z-index:5;pointer-events:auto;
   }
@@ -63,10 +67,10 @@
     will-change:transform,opacity;
   }
   .customer.entering{animation:walkIn var(--walkTime,.8s) cubic-bezier(.18,.75,.28,1) both}
-  @keyframes walkIn{from{transform:translateX(-108vw);opacity:.2}to{transform:translateX(0);opacity:1}}
+  @keyframes walkIn{from{transform:translateX(var(--enterDx,-1000px));opacity:.2}to{transform:translateX(0);opacity:1}}
 
   .person-wrap{
-    position:relative;height:clamp(132px,23dvh,190px);width:100%;
+    position:relative;height:300px;width:220px;
     display:flex;align-items:flex-end;justify-content:center;flex:none;
     filter:drop-shadow(0 4px 3px rgba(0,0,0,.20));
   }
@@ -99,7 +103,7 @@
   .patience-fill{height:100%;width:100%;background:#47a866;transform-origin:left center}
   .customer.happy-seated .patience,.customer.leaving-happy .patience,.customer.leaving-angry .patience{visibility:hidden}
   .leaving-happy,.leaving-angry{animation:leave .82s ease-in forwards}
-  @keyframes leave{to{transform:translateX(-110vw);opacity:.08}}
+  @keyframes leave{to{transform:translateX(var(--exitDx,-1000px));opacity:.08}}
 
   #roundSuccessCircle{position:absolute;left:50%;top:47%;transform:translate(-50%,-50%) scale(.45);opacity:0;z-index:80;pointer-events:none;color:#29a65c;font-size:clamp(170px,28vw,360px);line-height:.8;font-weight:1000;text-shadow:0 8px 16px rgba(0,0,0,.22);transition:.16s}
   #roundSuccessCircle.show{animation:roundSuccess .7s ease-out forwards}
@@ -109,7 +113,7 @@
   #turnMessage.show{opacity:1}
 
   /* 5択だけを表示 */
-  #kitchen{height:27dvh;min-height:185px;background:#fffaf0;border-top:3px solid #b98756;display:flex;flex-direction:column;padding:7px 12px 10px;z-index:30}
+  #kitchen{height:27dvh;min-height:185px;flex:0 0 auto;background:#fffaf0;border-top:3px solid #b98756;display:flex;flex-direction:column;padding:7px 12px 10px;z-index:30}
   .kitchen-title{display:flex;align-items:center;gap:12px;font-weight:900;font-size:clamp(15px,1.4vw,20px);margin:0 0 6px}
   .kitchen-title span{font-size:.76em;font-weight:700;opacity:.65}
   #foodGrid{flex:1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;min-height:0;align-items:stretch}
@@ -149,7 +153,6 @@
 
   @media (max-height:650px){
     #hud{height:9dvh}.title-card{padding:16px 24px}.howto{display:none}
-    #restaurant{height:62dvh}.table-wrap{height:34dvh}.person{min-height:74px}
     #kitchen{height:29dvh}.food-icon{height:clamp(70px,14dvh,95px)}.food-card{padding:3px}
   }
 </style>
@@ -175,10 +178,12 @@
     <button id="backBtn">タイトル</button>
   </header>
   <main id="restaurant">
-    <div id="entrance"></div>
+    <div id="stage">
+      <div id="entrance"></div>
+      <div id="tables"></div>
+    </div>
     <div id="turnMessage"></div>
     <div id="roundSuccessCircle">○</div>
-    <div id="tables"></div>
   </main>
   <section id="kitchen">
     <div class="kitchen-title">りょうりを はこぼう <span>5つのなかから えらぼう</span></div>
@@ -254,6 +259,8 @@
   const $ = s => document.querySelector(s);
   const titleScreen = $('#titleScreen');
   const gameScreen = $('#gameScreen');
+  const restaurantEl = $('#restaurant');
+  const stageEl = $('#stage');
   const tablesEl = $('#tables');
   const foodGrid = $('#foodGrid');
   const modeGrid = $('#modeGrid');
@@ -272,6 +279,47 @@
   let drag = null;
   let animationFrame = 0;
   let gameToken = 0;
+
+  const STAGE_W=1448, STAGE_H=1086, STAGE_CONTENT_H=590;
+  const SEAT_ANCHORS=[
+    [[410,535],[590,535]],
+    [[765,535],[945,535]],
+    [[1125,535],[1315,535]]
+  ];
+  const ENTRANCE_X=120;
+  let cachedVoices=[];
+  let speechPrimed=false;
+
+  function updateStageScale(){
+    if(!restaurantEl || !stageEl) return;
+    const w=restaurantEl.clientWidth || 1;
+    const h=restaurantEl.clientHeight || 1;
+    // 机・椅子がある上側590pxを必ず表示しつつ、可能な限り横幅を使う。
+    const scale=Math.min(w/STAGE_W, h/STAGE_CONTENT_H);
+    const shownW=STAGE_W*scale;
+    const left=Math.max(0,(w-shownW)/2);
+    stageEl.style.transform=`translate(${left}px,0) scale(${scale})`;
+  }
+
+  function refreshVoices(){
+    if('speechSynthesis' in window) cachedVoices=window.speechSynthesis.getVoices() || [];
+  }
+  if('speechSynthesis' in window){
+    refreshVoices();
+    window.speechSynthesis.addEventListener?.('voiceschanged',refreshVoices);
+  }
+
+  function primeSpeechFromUserGesture(){
+    if(speechPrimed || !('speechSynthesis' in window)) return;
+    speechPrimed=true;
+    try{
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume?.();
+      const u=new SpeechSynthesisUtterance('a');
+      u.lang='en-US'; u.volume=0; u.rate=2;
+      window.speechSynthesis.speak(u);
+    }catch(_e){}
+  }
 
   function shuffle(arr){
     const a=[...arr];
@@ -312,6 +360,8 @@
   }
 
   function startGame(modeId){
+    // モードボタンの直接タップ中に音声エンジンを起こしておく（iPad Safari対策）。
+    primeSpeechFromUserGesture();
     gameToken++;
     const token=gameToken;
     const mode=MODES[modeId];
@@ -322,6 +372,7 @@
     };
     titleScreen.classList.remove('active');
     gameScreen.classList.add('active');
+    requestAnimationFrame(updateStageScale);
     resultOverlay.classList.remove('show');
     modeLabel.textContent=mode.name;
     levelLabel.style.display=modeId==='sudden'?'block':'none';
@@ -383,11 +434,7 @@
     tablesEl.innerHTML='';
     // 背景画像の3卓の実座標。1卓なら中央、2卓なら左右、3卓なら全部を使う。
     const activeSlots = plan.tableCount===1 ? [1] : plan.tableCount===2 ? [0,2] : [0,1,2];
-    const seatLeft = [
-      [22.0,34.2],   // 左の卓
-      [45.7,59.4],   // 中央の卓
-      [70.4,83.2]    // 右の卓
-    ];
+    const anchors=SEAT_ANCHORS;
     for(let t=0;t<plan.tableCount;t++){
       const slot=activeSlots[t];
       const wrap=document.createElement('div');
@@ -396,7 +443,10 @@
         const seat=document.createElement('div');
         seat.className=`seat${seatIndex>=plan.peoplePerTable[t]?' disabled':''}`;
         seat.dataset.table=t; seat.dataset.seat=seatIndex;
-        seat.style.left=seatLeft[slot][seatIndex]+'%';
+        const [x,y]=anchors[slot][seatIndex];
+        seat.dataset.x=x; seat.dataset.y=y;
+        seat.style.left=x+'px';
+        seat.style.top=(y-320)+'px';
         wrap.appendChild(seat);
       }
       tablesEl.appendChild(wrap);
@@ -455,6 +505,9 @@
         </div>
         ${state.mode.timer?'<div class="patience"><div class="patience-fill"></div></div>':''}`;
       seat.appendChild(customer);
+      const seatX=Number(seat.dataset.x||0);
+      customer.style.setProperty('--enterDx',(ENTRANCE_X-seatX)+'px');
+      customer.style.setProperty('--exitDx',(ENTRANCE_X-seatX)+'px');
       const obj={id,country,el:customer,seat,start:0,patience:currentPatience(),done:false};
       state.customers.set(id,obj);
       customer.addEventListener('click',()=>showBubble(obj));
@@ -483,16 +536,26 @@
   function speakGreeting(country,onDone){
     if(!('speechSynthesis' in window)){ setTimeout(onDone,650); return; }
     const c=COUNTRIES[country];
+    const synth=window.speechSynthesis;
+    refreshVoices();
     const u=new SpeechSynthesisUtterance(c.greet);
-    u.lang=c.lang; u.rate=.82; u.pitch=1;
-    const voices=speechSynthesis.getVoices();
-    const exact=voices.find(v=>v.lang.toLowerCase()===c.lang.toLowerCase()) || voices.find(v=>v.lang.toLowerCase().startsWith(c.lang.slice(0,2).toLowerCase()));
+    u.lang=c.lang; u.rate=.82; u.pitch=1; u.volume=1;
+    const lang=c.lang.toLowerCase();
+    const base=lang.slice(0,2);
+    const voices=cachedVoices.length?cachedVoices:synth.getVoices();
+    const exact=voices.find(v=>(v.lang||'').toLowerCase()===lang) ||
+                voices.find(v=>(v.lang||'').toLowerCase().startsWith(base));
     if(exact) u.voice=exact;
     let ended=false;
     const done=()=>{ if(ended) return; ended=true; onDone?.(); };
     u.onend=done; u.onerror=done;
-    speechSynthesis.speak(u);
-    setTimeout(done,2200);
+    try{
+      synth.cancel();
+      synth.resume?.();
+      // iOSでcancel直後にspeakが無視される例を避け、短く次フレームへ送る。
+      setTimeout(()=>{ try{synth.speak(u);}catch(_e){done();} },30);
+    }catch(_e){ done(); }
+    setTimeout(done,2600);
   }
 
   function showBubble(obj){
@@ -855,6 +918,11 @@
       state._pauseStart=0;
     }
   });
+
+  window.addEventListener('resize',()=>requestAnimationFrame(updateStageScale));
+  window.addEventListener('orientationchange',()=>setTimeout(updateStageScale,120));
+  window.addEventListener('pageshow',()=>{ refreshVoices(); requestAnimationFrame(updateStageScale); });
+  if('visualViewport' in window) visualViewport.addEventListener('resize',()=>requestAnimationFrame(updateStageScale));
 
   renderMenu();
 })();
