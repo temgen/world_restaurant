@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>せかいのレストラン</title>
+<style>
+  :root{
+    --panel:#fffdf6;
+    --ink:#24313c;
+    --line:#d9d0bd;
+    --accent:#f4b942;
+    --danger:#d94a45;
+    --ok:#2e9c5b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#efe8dc;color:var(--ink);font-family:"BIZ UDPGothic","UD Digi Kyokasho N-R","Yu Gothic",sans-serif}
+  button{font:inherit}
+  .screen{display:none;width:100vw;height:100dvh;overflow:hidden}
+  .screen.active{display:flex}
+
+  /* title */
+  #titleScreen{align-items:center;justify-content:center;background:linear-gradient(180deg,#fff4d7 0%,#f2ddc2 100%);position:relative}
+  .title-card{width:min(920px,92vw);padding:28px 34px 30px;border-radius:30px;background:rgba(255,255,255,.92);box-shadow:0 18px 50px rgba(74,55,35,.18);border:3px solid #fff}
+  .title-main{margin:0;text-align:center;font-size:clamp(36px,5vw,70px);font-weight:900;letter-spacing:.04em}
+  .title-sub{text-align:center;font-size:clamp(18px,2.2vw,30px);font-weight:800;margin:10px 0 24px}
+  .mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .mode-btn{position:relative;border:none;border-radius:22px;padding:18px 16px;background:#fff;box-shadow:0 8px 18px rgba(0,0,0,.10);font-weight:900;font-size:clamp(22px,2.6vw,36px);cursor:pointer;min-height:90px}
+  .mode-btn small{display:block;font-size:.48em;margin-top:5px;font-weight:800;opacity:.72}
+  .mode-btn.locked{filter:grayscale(.9);opacity:.52;cursor:default}
+  .lock{position:absolute;right:14px;top:12px;font-size:30px}
+  .best-score{text-align:center;margin-top:18px;font-weight:800;font-size:18px}
+  .howto{margin-top:18px;padding:14px 16px;border-radius:16px;background:#fff8e5;font-size:clamp(14px,1.55vw,20px);font-weight:700;line-height:1.55}
+
+  /* game */
+  #gameScreen{flex-direction:column;background:#eee5d7;position:relative}
+  #hud{height:9.5dvh;min-height:62px;display:flex;align-items:center;gap:12px;padding:8px 14px;background:#fffdf7;border-bottom:2px solid #d6c9b7;z-index:20}
+  .hud-title{font-size:clamp(18px,2vw,28px);font-weight:900;white-space:nowrap}
+  .hud-box{background:#f6efe5;border-radius:14px;padding:8px 14px;font-weight:900;font-size:clamp(15px,1.6vw,22px);white-space:nowrap}
+  .hud-spacer{flex:1}
+  #backBtn{border:none;border-radius:14px;padding:10px 18px;background:#d8d1c7;font-weight:900;font-size:clamp(14px,1.4vw,20px);cursor:pointer}
+
+  /* 横から見たレストラン：生成した背景画像をそのまま使用 */
+  #restaurant{
+    position:relative;height:63.5dvh;min-height:330px;overflow:hidden;
+    background-image:linear-gradient(rgba(255,255,255,.02),rgba(255,255,255,.02)),url("assets/restaurant_bg.jpg");
+    background-size:100% 100%;background-position:center;background-repeat:no-repeat;
+  }
+  /* 背景画像自体に入口・机・椅子が描かれているので、HTML側では透明な座席だけを重ねる */
+  #entrance{position:absolute;left:0;top:0;width:18%;height:100%;pointer-events:none;z-index:1}
+  #tables{position:absolute;inset:0;z-index:4;pointer-events:none}
+  .table-wrap{position:absolute;inset:0;pointer-events:none}
+  .seat{
+    position:absolute;bottom:38%;width:12%;height:58%;
+    display:flex;align-items:flex-end;justify-content:center;
+    z-index:5;pointer-events:auto;
+  }
+  .seat.disabled{display:none}
+
+  .customer{
+    position:relative;width:100%;height:100%;display:flex;flex-direction:column;
+    align-items:center;justify-content:flex-end;cursor:pointer;touch-action:manipulation;
+    will-change:transform,opacity;
+  }
+  .customer.entering{animation:walkIn var(--walkTime,.8s) cubic-bezier(.18,.75,.28,1) both}
+  @keyframes walkIn{from{transform:translateX(-108vw);opacity:.2}to{transform:translateX(0);opacity:1}}
+
+  .person-wrap{
+    position:relative;height:clamp(132px,23dvh,190px);width:100%;
+    display:flex;align-items:flex-end;justify-content:center;flex:none;
+    filter:drop-shadow(0 4px 3px rgba(0,0,0,.20));
+  }
+  .person-img{height:100%;width:auto;max-width:125%;object-fit:contain;object-position:center bottom;display:block;transition:filter .15s}
+  /* 右側の席だけ、着席中の人物を左右反転して机の方を向かせる。入退店画像は向きを変えない。 */
+  .seat[data-seat="1"] .customer:not(.entering):not(.leaving-happy):not(.leaving-angry) .person-img{transform:scaleX(-1)}
+  .chest-flag{
+    position:absolute;z-index:8;width:34%;max-width:74px;height:auto;left:50%;top:40%;
+    transform:translate(-50%,-50%);filter:drop-shadow(0 1px 2px rgba(0,0,0,.28));pointer-events:none;
+  }
+  .person-wrap[data-pose="walk-in"] .chest-flag{top:42%;left:51%;width:31%}
+  .person-wrap[data-pose="seated"] .chest-flag{top:40%;left:50%;width:33%}
+  .person-wrap[data-pose="happy-seated"] .chest-flag{top:43%;left:50%;width:32%}
+  .person-wrap[data-pose="angry-seated"] .chest-flag{top:43%;left:50%;width:32%}
+  .person-wrap[data-pose="happy-exit"] .chest-flag{top:46%;left:50%;width:31%}
+  .person-wrap[data-pose="angry-exit"] .chest-flag{top:45%;left:50%;width:31%}
+
+  .info-bubble{
+    /* 吹き出しは客の領域の内側に置く。上方向へ100%逃がすとPC/iPadとも画面外へ出やすい。 */
+    position:absolute;left:50%;top:8px;transform:translate(-50%,0) scale(.85);opacity:0;pointer-events:none;
+    background:#fff;border:3px solid #3b4b5a;border-radius:16px;padding:8px 12px;
+    font-size:clamp(15px,1.5vw,21px);font-weight:900;white-space:nowrap;
+    box-shadow:0 7px 14px rgba(0,0,0,.16);transition:.16s;z-index:20;
+    display:flex;align-items:center;gap:8px;
+  }
+  .bubble-flag{width:clamp(42px,5vw,70px);height:auto;max-height:44px;object-fit:contain}
+  .info-bubble.show{transform:translate(-50%,0) scale(1);opacity:1}
+  .info-bubble:after{content:"";position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);border:10px solid transparent;border-top-color:#3b4b5a;border-bottom:0}
+  .patience{width:82%;height:9px;border-radius:99px;background:#e7ddd0;overflow:hidden;margin:4px 0 1px;border:1px solid rgba(0,0,0,.1)}
+  .patience-fill{height:100%;width:100%;background:#47a866;transform-origin:left center}
+  .customer.happy-seated .patience,.customer.leaving-happy .patience,.customer.leaving-angry .patience{visibility:hidden}
+  .leaving-happy,.leaving-angry{animation:leave .82s ease-in forwards}
+  @keyframes leave{to{transform:translateX(-110vw);opacity:.08}}
+
+  #roundSuccessCircle{position:absolute;left:50%;top:47%;transform:translate(-50%,-50%) scale(.45);opacity:0;z-index:80;pointer-events:none;color:#29a65c;font-size:clamp(170px,28vw,360px);line-height:.8;font-weight:1000;text-shadow:0 8px 16px rgba(0,0,0,.22);transition:.16s}
+  #roundSuccessCircle.show{animation:roundSuccess .7s ease-out forwards}
+  @keyframes roundSuccess{0%{opacity:0;transform:translate(-50%,-50%) scale(.35)}28%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}72%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
+
+  #turnMessage{position:absolute;left:50%;top:12%;transform:translateX(-50%);z-index:12;background:rgba(255,255,255,.92);border:3px solid #d6c9b7;border-radius:18px;padding:9px 18px;font-weight:900;font-size:clamp(17px,2vw,28px);box-shadow:0 7px 16px rgba(0,0,0,.12);opacity:0;transition:.18s;pointer-events:none}
+  #turnMessage.show{opacity:1}
+
+  /* 5択だけを表示 */
+  #kitchen{height:27dvh;min-height:185px;background:#fffaf0;border-top:3px solid #b98756;display:flex;flex-direction:column;padding:7px 12px 10px;z-index:30}
+  .kitchen-title{display:flex;align-items:center;gap:12px;font-weight:900;font-size:clamp(15px,1.4vw,20px);margin:0 0 6px}
+  .kitchen-title span{font-size:.76em;font-weight:700;opacity:.65}
+  #foodGrid{flex:1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;min-height:0;align-items:stretch}
+  #foodGrid.waiting{opacity:.18;pointer-events:none}
+  .food-card{position:relative;border:2px solid #d5c7b4;border-radius:15px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:6px 5px;box-shadow:0 2px 5px rgba(0,0,0,.08);font-weight:900;font-size:clamp(12px,1.35vw,19px);touch-action:none;cursor:grab;min-width:0;text-align:center}
+  .food-card:active{cursor:grabbing}
+  .food-icon{display:block;width:100%;height:clamp(76px,14dvh,160px);min-height:0;object-fit:contain;pointer-events:none;-webkit-user-drag:none;flex:0 1 auto}
+  .food-name{display:block;max-width:100%;white-space:normal;overflow:visible;line-height:1.12;text-align:center;word-break:keep-all}
+  .food-card.dragging{opacity:.35}
+  .food-card.used{opacity:.30;filter:grayscale(.65);cursor:default;pointer-events:none}
+  .food-card.used::after{content:"つかった";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.58);border-radius:13px;color:#5b5146;font-size:clamp(15px,1.55vw,22px);font-weight:1000;letter-spacing:.05em}
+  .food-country-flag{position:absolute;left:7px;top:7px;width:clamp(40px,4.8vw,70px);height:auto;max-height:44px;object-fit:contain;z-index:3;filter:drop-shadow(0 2px 2px rgba(0,0,0,.24));pointer-events:none}
+  .drag-ghost{position:fixed;z-index:1000;pointer-events:none;width:min(190px,22vw);min-height:70px;border:3px solid #6a4a2d;border-radius:14px;background:white;display:flex;align-items:center;gap:10px;padding:8px 12px;box-shadow:0 12px 26px rgba(0,0,0,.28);font-weight:900;transform:translate(-50%,-50%) scale(1.05)}
+  .drag-ghost.returning{transition:left .28s ease,top .28s ease,transform .28s ease,opacity .28s ease;transform:translate(-50%,-50%) scale(.82);opacity:.45}
+  .drag-ghost .food-icon{width:74px;height:74px;flex:none}
+  .drop-target{filter:drop-shadow(0 0 10px rgba(255,221,61,.95))}
+  #waitingText{position:absolute;left:50%;bottom:8.2%;transform:translateX(-50%);z-index:40;font-weight:900;font-size:clamp(18px,2vw,28px);background:#fff8dc;border:3px solid #e2c879;border-radius:16px;padding:9px 18px;display:none;white-space:nowrap}
+  #waitingText.show{display:block}
+
+  #flashLayer{position:fixed;inset:0;pointer-events:none;z-index:2000}
+  .mark{position:fixed;transform:translate(-50%,-50%) scale(.4);font-size:clamp(64px,8vw,120px);font-weight:1000;text-shadow:0 5px 8px rgba(0,0,0,.22);animation:mark .55s ease-out forwards}
+  .mark.bad{color:#e13232}.mark.good{color:#32a85c}
+  @keyframes mark{35%{transform:translate(-50%,-50%) scale(1.16);opacity:1}100%{transform:translate(-50%,-50%) scale(.95);opacity:0}}
+
+  /* overlays */
+  .overlay{position:fixed;inset:0;background:rgba(31,27,22,.54);z-index:3000;display:none;align-items:center;justify-content:center;padding:24px}
+  .overlay.show{display:flex}
+  .dialog{width:min(720px,92vw);background:white;border-radius:28px;padding:28px 32px;text-align:center;box-shadow:0 22px 60px rgba(0,0,0,.28)}
+  .dialog h2{font-size:clamp(34px,4.5vw,62px);margin:0 0 10px}
+  .dialog p{font-size:clamp(18px,2vw,28px);font-weight:800;line-height:1.5;margin:10px 0 20px;white-space:pre-line}
+  .dialog-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .dialog button{border:none;border-radius:16px;padding:13px 25px;font-size:clamp(18px,1.8vw,25px);font-weight:900;cursor:pointer;background:#f1b84b;color:#35240e;min-width:150px}
+  .dialog button.secondary{background:#ded8d0;color:#333}
+  .unlock{font-size:clamp(18px,2.1vw,30px);font-weight:900;color:#c45d00;margin:12px 0}
+  #levelToast{position:fixed;left:50%;top:45%;transform:translate(-50%,-50%) scale(.7);opacity:0;z-index:2500;background:#fff5c7;border:5px solid #e39d26;border-radius:22px;padding:18px 34px;font-size:clamp(38px,5vw,70px);font-weight:1000;pointer-events:none;transition:.25s}
+  #levelToast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+  @media (max-height:650px){
+    #hud{height:9dvh}.title-card{padding:16px 24px}.howto{display:none}
+    #restaurant{height:62dvh}.table-wrap{height:34dvh}.person{min-height:74px}
+    #kitchen{height:29dvh}.food-icon{height:clamp(70px,14dvh,95px)}.food-card{padding:3px}
+  }
+</style>
+</head>
+<body>
+<section id="titleScreen" class="screen active">
+  <div class="title-card">
+    <h1 class="title-main">せかいのレストラン</h1>
+    <div class="title-sub">その国の りょうりを はこぼう！</div>
+    <div class="mode-grid" id="modeGrid"></div>
+    <div class="best-score" id="bestScore"></div>
+    <div class="howto">おきゃくさんは <b>左から入ってきて</b>、じゅんばんに あいさつをします。<br>人をタップすると <b>国名と国旗</b> が見られます。5つのりょうりから えらんで はこんでください。</div>
+  </div>
+</section>
+
+<section id="gameScreen" class="screen">
+  <header id="hud">
+    <div class="hud-title">せかいのレストラン</div>
+    <div class="hud-box" id="modeLabel">やさしい</div>
+    <div class="hud-box" id="progressLabel">だした 0 / 10</div>
+    <div class="hud-box" id="levelLabel" style="display:none">LEVEL 1</div>
+    <div class="hud-spacer"></div>
+    <button id="backBtn">タイトル</button>
+  </header>
+  <main id="restaurant">
+    <div id="entrance"></div>
+    <div id="turnMessage"></div>
+    <div id="roundSuccessCircle">○</div>
+    <div id="tables"></div>
+  </main>
+  <section id="kitchen">
+    <div class="kitchen-title">りょうりを はこぼう <span>5つのなかから えらぼう</span></div>
+    <div id="foodGrid" class="waiting"></div>
+  </section>
+  <div id="waitingText">おきゃくさんが くるよ…</div>
+</section>
+
+<div id="flashLayer"></div>
+<div id="levelToast">LEVEL 2!</div>
+
+<div id="resultOverlay" class="overlay">
+  <div class="dialog">
+    <h2 id="resultTitle">クリア！</h2>
+    <p id="resultText"></p>
+    <div id="unlockText" class="unlock"></div>
+    <div class="dialog-btns">
+      <button id="againBtn">もういちど</button>
+      <button id="resultTitleBtn" class="secondary">タイトルへ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const COUNTRIES = {
+    jp:{name:'日本（にほん）', flag:'🇯🇵', flagImg:'assets/flag_jp.png', greet:'こんにちは', lang:'ja-JP'},
+    us:{name:'アメリカ', flag:'🇺🇸', flagImg:'assets/flag_us.png', greet:'Hello', lang:'en-US'},
+    th:{name:'タイ', flag:'🇹🇭', flagImg:'assets/flag_th.png', greet:'สวัสดี', lang:'th-TH'},
+    cn:{name:'中国（ちゅうごく）', flag:'🇨🇳', flagImg:'assets/flag_cn.png', greet:'你好', lang:'zh-CN'},
+    in:{name:'インド', flag:'🇮🇳', flagImg:'assets/flag_in.png', greet:'नमस्ते', lang:'hi-IN'}
+  };
+
+  const PERSON_POSES = {
+    'walk-in':'assets/person_walk_in.png',
+    'seated':'assets/person_seated.png',
+    'happy-seated':'assets/person_happy_seated.png',
+    'angry-seated':'assets/person_angry_seated.png',
+    'happy-exit':'assets/person_happy_exit.png',
+    'angry-exit':'assets/person_angry_exit.png'
+  };
+
+  const FOODS = [
+    {country:'jp',name:'すし',icon:'🍣',image:'assets/food_jp_sushi.png'},
+    {country:'jp',name:'おにぎり',icon:'🍙',image:'assets/food_jp_onigiri.png'},
+    {country:'jp',name:'てんぷら',icon:'🍤',image:'assets/food_jp_tempura.png'},
+    {country:'us',name:'ハンバーガー',icon:'🍔',image:'assets/food_us_burger.png'},
+    {country:'us',name:'ホットドッグ',icon:'🌭',image:'assets/food_us_hotdog.png'},
+    {country:'us',name:'バーベキュー',icon:'🍖',image:'assets/food_us_bbq.png'},
+    {country:'cn',name:'ぎょうざ',icon:'🥟',image:'assets/food_cn_gyoza.png'},
+    {country:'cn',name:'チャーハン',icon:'🍚',image:'assets/food_cn_fried_rice.png'},
+    {country:'cn',name:'マーボーどうふ',icon:'🍲',image:'assets/food_cn_mapo.png'},
+    {country:'in',name:'カレー＋ナン',icon:'🍛',image:'assets/food_in_curry_naan.png'},
+    {country:'in',name:'タンドリーチキン',icon:'🍗',image:'assets/food_in_tandoori.png'},
+    {country:'in',name:'ビリヤニ',icon:'🍚',image:'assets/food_in_biryani.png'},
+    {country:'th',name:'ガパオライス',icon:'🍳',image:'assets/food_th_gapao.png'},
+    {country:'th',name:'トムヤムクン',icon:'🍲',image:'assets/food_th_tomyum.png'},
+    {country:'th',name:'パッタイ',icon:'🍜',image:'assets/food_th_padthai.png'}
+  ];
+
+  /* 1ターン：客が来る → 5択表示 → 全員終わる → 次のターン */
+  const MODES = {
+    easy:{id:'easy',name:'やさしい',unlock:1,target:10,maxTurnTables:1,multi:false,timer:null,desc:'1卓ずつ・10人・時間制限なし'},
+    normal:{id:'normal',name:'ふつう',unlock:2,target:15,maxTurnTables:2,multi:false,timer:null,desc:'1～2卓ずつ・15人'},
+    hard:{id:'hard',name:'むずかしい',unlock:3,target:20,maxTurnTables:3,multi:true,timer:true,clearNeed:15,desc:'1～3卓・1卓1～2人・人数で時間が変わる'},
+    sudden:{id:'sudden',name:'サドンデス',unlock:4,target:Infinity,maxTurnTables:3,multi:true,timer:true,desc:'人数に応じた時間・LEVELごとに短くなる'}
+  };
+
+  // そのターンに来る人数ごとの基準待ち時間（秒）
+  const TURN_PATIENCE = {1:10,2:13,3:16,4:19,5:22};
+  const $ = s => document.querySelector(s);
+  const titleScreen = $('#titleScreen');
+  const gameScreen = $('#gameScreen');
+  const tablesEl = $('#tables');
+  const foodGrid = $('#foodGrid');
+  const modeGrid = $('#modeGrid');
+  const progressLabel = $('#progressLabel');
+  const modeLabel = $('#modeLabel');
+  const levelLabel = $('#levelLabel');
+  const resultOverlay = $('#resultOverlay');
+  const levelToast = $('#levelToast');
+  const waitingText = $('#waitingText');
+  const turnMessage = $('#turnMessage');
+  const roundSuccessCircle = $('#roundSuccessCircle');
+
+  let unlocked = Math.max(1, Math.min(4, Number(localStorage.getItem('worldRestaurantUnlocked') || 1)));
+  let bestSudden = Number(localStorage.getItem('worldRestaurantBestSudden') || 0);
+  let state = null;
+  let drag = null;
+  let animationFrame = 0;
+  let gameToken = 0;
+
+  function shuffle(arr){
+    const a=[...arr];
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+    return a;
+  }
+
+  function randomInt(min,max){ return min + Math.floor(Math.random()*(max-min+1)); }
+
+  function renderMenu(){
+    modeGrid.innerHTML='';
+    Object.values(MODES).forEach(m=>{
+      const locked = unlocked < m.unlock;
+      const btn=document.createElement('button');
+      btn.className='mode-btn'+(locked?' locked':'');
+      btn.innerHTML=`${m.name}<small>${m.desc}</small>${locked?'<span class="lock">🔒</span>':''}`;
+      if(!locked) btn.addEventListener('click',()=>startGame(m.id));
+      modeGrid.appendChild(btn);
+    });
+    $('#bestScore').textContent = bestSudden>0 ? `サドンデス さいこうきろく：${bestSudden}人` : '';
+  }
+
+  function makeBalancedQueue(total){
+    const keys=Object.keys(COUNTRIES), out=[];
+    while(out.length<total){ out.push(...shuffle(keys)); }
+    return out.slice(0,total);
+  }
+
+  function currentPatience(){
+    // 客数が多いほど、全員に料理を配るための時間を長くする。
+    const people=Math.max(1,Math.min(5,state?.turnPlan?.countries?.length || 1));
+    const base=TURN_PATIENCE[people];
+    if(state.mode.id!=='sudden') return base;
+
+    // サドンデスはLEVELが1上がるごとに2秒短縮。最低3秒。
+    // LEVEL UPがターン途中で起きても、すでに来店中の客の制限時間は変えず、次のターンから反映される。
+    return Math.max(3,base-(state.level-1)*2);
+  }
+
+  function startGame(modeId){
+    gameToken++;
+    const token=gameToken;
+    const mode=MODES[modeId];
+    state={
+      mode, served:0, handled:0, left:0, level:1, running:true,
+      customers:new Map(), queue:modeId==='sudden'?[]:makeBalancedQueue(mode.target), queueIndex:0,
+      turnNo:0, turnPlan:null, turnReady:false, arriving:false, turnHadTimeout:false, turnTransitioning:false, token
+    };
+    titleScreen.classList.remove('active');
+    gameScreen.classList.add('active');
+    resultOverlay.classList.remove('show');
+    modeLabel.textContent=mode.name;
+    levelLabel.style.display=modeId==='sudden'?'block':'none';
+    levelLabel.textContent='LEVEL 1';
+    clearRestaurant();
+    updateHud();
+    cancelAnimationFrame(animationFrame);
+    tick();
+    setTimeout(()=>beginTurn(token),250);
+  }
+
+  function clearRestaurant(){
+    tablesEl.innerHTML='';
+    tablesEl.className='';
+    foodGrid.innerHTML='';
+    foodGrid.classList.add('waiting');
+    waitingText.classList.remove('show');
+    turnMessage.classList.remove('show');
+    roundSuccessCircle.classList.remove('show');
+  }
+
+  function remainingNormal(){
+    if(state.mode.id==='sudden') return 5;
+    return Math.max(0,state.mode.target-state.handled-state.customers.size);
+  }
+
+  function buildTurnPlan(){
+    const m=state.mode;
+    const remaining = m.id==='sudden' ? 5 : Math.max(1,m.target-state.handled);
+    let tableCount=randomInt(1,m.maxTurnTables);
+    if(m.id==='easy') tableCount=1;
+    tableCount=Math.min(tableCount,3,remaining);
+
+    const peoplePerTable=[];
+    let people=0;
+    for(let t=0;t<tableCount;t++){
+      const tablesLeft=tableCount-t;
+      const room=Math.min(5-people, remaining-people);
+      let count=1;
+      if(m.multi && room>tablesLeft && Math.random()<0.58) count=2;
+      peoplePerTable.push(count);
+      people+=count;
+    }
+    while(people>remaining || people>5){
+      const idx=peoplePerTable.lastIndexOf(2);
+      if(idx<0) break;
+      peoplePerTable[idx]=1; people--;
+    }
+
+    const countries=[];
+    for(let i=0;i<people;i++){
+      if(m.id==='sudden') countries.push(Object.keys(COUNTRIES)[Math.floor(Math.random()*5)]);
+      else countries.push(state.queue[state.queueIndex++]);
+    }
+    return {tableCount,peoplePerTable,countries};
+  }
+
+  function buildTables(plan){
+    tablesEl.innerHTML='';
+    // 背景画像の3卓の実座標。1卓なら中央、2卓なら左右、3卓なら全部を使う。
+    const activeSlots = plan.tableCount===1 ? [1] : plan.tableCount===2 ? [0,2] : [0,1,2];
+    const seatLeft = [
+      [22.0,34.2],   // 左の卓
+      [45.7,59.4],   // 中央の卓
+      [70.4,83.2]    // 右の卓
+    ];
+    for(let t=0;t<plan.tableCount;t++){
+      const slot=activeSlots[t];
+      const wrap=document.createElement('div');
+      wrap.className='table-wrap'; wrap.dataset.table=t; wrap.dataset.slot=slot;
+      for(let seatIndex=0;seatIndex<2;seatIndex++){
+        const seat=document.createElement('div');
+        seat.className=`seat${seatIndex>=plan.peoplePerTable[t]?' disabled':''}`;
+        seat.dataset.table=t; seat.dataset.seat=seatIndex;
+        seat.style.left=seatLeft[slot][seatIndex]+'%';
+        wrap.appendChild(seat);
+      }
+      tablesEl.appendChild(wrap);
+    }
+  }
+
+  async function beginTurn(token){
+    if(!state || !state.running || token!==state.token) return;
+    if(state.mode.id!=='sudden' && state.handled>=state.mode.target){ finishNormal(state.mode.id!=='hard' || state.served>=state.mode.clearNeed); return; }
+    state.turnNo++;
+    state.turnReady=false;
+    state.arriving=true;
+    state.turnHadTimeout=false;
+    state.turnTransitioning=false;
+    state.customers.clear();
+    state.turnPlan=buildTurnPlan();
+    buildTables(state.turnPlan);
+    foodGrid.innerHTML='';
+    foodGrid.classList.add('waiting');
+    waitingText.classList.add('show');
+    showTurnMessage(`${state.turnNo}かいめの おきゃくさん`);
+
+    let countryIndex=0;
+    for(let t=0;t<state.turnPlan.tableCount;t++){
+      for(let s=0;s<state.turnPlan.peoplePerTable[t];s++){
+        if(!state.running || token!==state.token) return;
+        const country=state.turnPlan.countries[countryIndex++];
+        await seatOneCustomer(t,s,country,token);
+      }
+    }
+    if(!state.running || token!==state.token) return;
+    state.arriving=false;
+    state.turnReady=true;
+    const now=performance.now();
+    for(const obj of state.customers.values()){ obj.start=now; obj.patience=currentPatience(); }
+    buildTurnFoods(state.turnPlan.countries);
+    foodGrid.classList.remove('waiting');
+    waitingText.classList.remove('show');
+    showTurnMessage('りょうりを はこぼう！',900);
+  }
+
+  function seatOneCustomer(table,seatIndex,country,token){
+    return new Promise(resolve=>{
+      if(!state || !state.running || token!==state.token){ resolve(); return; }
+      const seat=tablesEl.querySelector(`.seat[data-table="${table}"][data-seat="${seatIndex}"]`);
+      if(!seat){ resolve(); return; }
+      const id='c'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+      const customer=document.createElement('div');
+      customer.className='customer entering'; customer.dataset.id=id; customer.dataset.country=country;
+      customer.style.setProperty('--walkTime','.72s');
+      customer.innerHTML=`
+        <div class="info-bubble"><img class="bubble-flag" src="${COUNTRIES[country].flagImg}" alt=""> <span>${COUNTRIES[country].name}</span></div>
+        <div class="person-wrap" data-pose="walk-in" aria-label="おきゃくさん">
+          <img class="person-img" src="${PERSON_POSES['walk-in']}" alt="">
+          <img class="chest-flag" src="${COUNTRIES[country].flagImg}" alt="${COUNTRIES[country].name}の国旗">
+        </div>
+        ${state.mode.timer?'<div class="patience"><div class="patience-fill"></div></div>':''}`;
+      seat.appendChild(customer);
+      const obj={id,country,el:customer,seat,start:0,patience:currentPatience(),done:false};
+      state.customers.set(id,obj);
+      customer.addEventListener('click',()=>showBubble(obj));
+      customer.addEventListener('animationend',onArrive,{once:true});
+      setTimeout(onArrive,900);
+
+      let arrived=false;
+      function onArrive(){
+        if(arrived) return; arrived=true;
+        customer.classList.remove('entering');
+        setPose(obj,'seated');
+        if(!state || !state.running || token!==state.token){ resolve(); return; }
+        speakGreeting(country,()=>setTimeout(resolve,140));
+      }
+    });
+  }
+
+  function setPose(obj,pose){
+    if(!obj?.el) return;
+    const wrap=obj.el.querySelector('.person-wrap');
+    const img=obj.el.querySelector('.person-img');
+    if(wrap) wrap.dataset.pose=pose;
+    if(img && PERSON_POSES[pose]) img.src=PERSON_POSES[pose];
+  }
+
+  function speakGreeting(country,onDone){
+    if(!('speechSynthesis' in window)){ setTimeout(onDone,650); return; }
+    const c=COUNTRIES[country];
+    const u=new SpeechSynthesisUtterance(c.greet);
+    u.lang=c.lang; u.rate=.82; u.pitch=1;
+    const voices=speechSynthesis.getVoices();
+    const exact=voices.find(v=>v.lang.toLowerCase()===c.lang.toLowerCase()) || voices.find(v=>v.lang.toLowerCase().startsWith(c.lang.slice(0,2).toLowerCase()));
+    if(exact) u.voice=exact;
+    let ended=false;
+    const done=()=>{ if(ended) return; ended=true; onDone?.(); };
+    u.onend=done; u.onerror=done;
+    speechSynthesis.speak(u);
+    setTimeout(done,2200);
+  }
+
+  function showBubble(obj){
+    if(!obj || obj.done) return;
+    const bubble=obj.el.querySelector('.info-bubble');
+    bubble.classList.add('show');
+    clearTimeout(obj.bubbleTimer);
+    obj.bubbleTimer=setTimeout(()=>bubble.classList.remove('show'),2200);
+  }
+
+  function buildTurnFoods(countries){
+    const choices=[];
+    const countryCounts={};
+    for(const country of countries) countryCounts[country]=(countryCounts[country]||0)+1;
+
+    // 1度正しく出したカードは使えなくなるため、同じ国の客が複数いる場合は、
+    // その人数以上の「その国の料理カード」を必ず用意する。
+    for(const [country,need] of Object.entries(countryCounts)){
+      const foods=shuffle(FOODS.filter(f=>f.country===country));
+      for(let i=0;i<need;i++){
+        // 各国3品をまず重複なしで使い、4人以上なら同じ料理のカードを追加して人数分を確保する。
+        choices.push(foods[i % foods.length]);
+      }
+    }
+
+    // 5択になるまで追加。必要カード数を下回らない範囲で、残りはランダムな料理を入れる。
+    // できるだけ同じ「国＋料理」の重複を避けるが、重複してもゲームは成立する。
+    const usedKeys=new Set(choices.map(f=>`${f.country}|${f.name}`));
+    let pool=shuffle(FOODS.filter(f=>!usedKeys.has(`${f.country}|${f.name}`)));
+    for(const f of pool){
+      if(choices.length>=5) break;
+      choices.push(f);
+      usedKeys.add(`${f.country}|${f.name}`);
+    }
+    while(choices.length<5){ choices.push(FOODS[Math.floor(Math.random()*FOODS.length)]); }
+
+    foodGrid.innerHTML='';
+    shuffle(choices.slice(0,5)).forEach((food,index)=>{
+      const card=document.createElement('div');
+      card.className='food-card';
+      card.dataset.country=food.country;
+      card.dataset.name=food.name;
+      card.dataset.used='0';
+      card.dataset.cardId=`food_${state.turnNo}_${index}_${Math.random().toString(36).slice(2,7)}`;
+      const displayName=`${food.name}【${COUNTRIES[food.country].name}】`;
+      const easyFlag = state.mode.id==='easy'
+        ? `<img class="food-country-flag" src="${COUNTRIES[food.country].flagImg}" alt="${COUNTRIES[food.country].name}の国旗" draggable="false">`
+        : '';
+      card.innerHTML=`${easyFlag}<img class="food-icon" src="${food.image}" alt="${displayName}" draggable="false"><span class="food-name">${displayName}</span>`;
+      card.addEventListener('pointerdown',startDrag);
+      foodGrid.appendChild(card);
+    });
+  }
+
+  function startDrag(e){
+    if(!state || !state.running || !state.turnReady || e.button>0) return;
+    const card=e.currentTarget;
+    if(card.dataset.used==='1' || card.classList.contains('used')) return;
+    e.preventDefault();
+    card.setPointerCapture?.(e.pointerId);
+    card.classList.add('dragging');
+    const ghost=document.createElement('div');
+    ghost.className='drag-ghost'; ghost.innerHTML=card.innerHTML;
+    document.body.appendChild(ghost);
+    drag={card,ghost,pointerId:e.pointerId,country:card.dataset.country,x:e.clientX,y:e.clientY,target:null};
+    moveGhost(e.clientX,e.clientY);
+    card.addEventListener('pointermove',dragMove);
+    card.addEventListener('pointerup',endDrag,{once:true});
+    card.addEventListener('pointercancel',endDrag,{once:true});
+  }
+
+  function dragMove(e){
+    if(!drag || e.pointerId!==drag.pointerId) return;
+    e.preventDefault(); moveGhost(e.clientX,e.clientY);
+    const hit=document.elementFromPoint(e.clientX,e.clientY);
+    const custEl=hit?.closest?.('.customer');
+    if(drag.target && drag.target!==custEl) drag.target.classList.remove('drop-target');
+    drag.target=custEl || null;
+    if(drag.target) drag.target.classList.add('drop-target');
+  }
+
+  function moveGhost(x,y){
+    if(!drag) return;
+    drag.x=x;drag.y=y;drag.ghost.style.left=x+'px';drag.ghost.style.top=y+'px';
+  }
+
+  function endDrag(e){
+    if(!drag) return;
+    const d=drag; drag=null;
+    d.card.removeEventListener('pointermove',dragMove);
+    d.target?.classList.remove('drop-target');
+    const hit=document.elementFromPoint(e.clientX,e.clientY);
+    const custEl=hit?.closest?.('.customer');
+
+    // 何もない場所で離したときは、料理カードが元の位置へ戻っていく。
+    if(!custEl){
+      returnGhostToCard(d);
+      return;
+    }
+
+    d.card.classList.remove('dragging');
+    d.ghost.remove();
+    const obj=state?.customers.get(custEl.dataset.id);
+    if(!obj || obj.done) return;
+    if(obj.country===d.country){
+      // 誤配時の×と同じ大きさで、小さな○をその場に表示する。
+      flashMark('○',e.clientX,e.clientY,'good');
+      consumeFoodCard(d.card);
+      serveCustomer(obj);
+    }else{
+      flashMark('×',e.clientX,e.clientY,'bad');
+    }
+  }
+
+  function consumeFoodCard(card){
+    if(!card || card.dataset.used==='1') return;
+    card.dataset.used='1';
+    card.classList.remove('dragging');
+    card.classList.add('used');
+    card.setAttribute('aria-disabled','true');
+  }
+
+  function returnGhostToCard(d){
+    if(!d?.ghost || !d?.card) return;
+    const rect=d.card.getBoundingClientRect();
+    d.ghost.classList.add('returning');
+    requestAnimationFrame(()=>{
+      d.ghost.style.left=(rect.left+rect.width/2)+'px';
+      d.ghost.style.top=(rect.top+rect.height/2)+'px';
+    });
+    setTimeout(()=>{
+      d.ghost?.remove();
+      d.card?.classList.remove('dragging');
+    },300);
+  }
+
+  function flashMark(text,x,y,kind){
+    const m=document.createElement('div');m.className=`mark ${kind}`;m.textContent=text;m.style.left=x+'px';m.style.top=y+'px';
+    $('#flashLayer').appendChild(m);setTimeout(()=>m.remove(),620);
+  }
+
+  function serveCustomer(obj){
+    if(obj.done || !state.running || !state.turnReady) return;
+    obj.done=true; obj.success=true; obj.start=0;
+    state.served++; state.handled++;
+    obj.el.classList.remove('angry-wait');
+    obj.el.classList.add('happy-seated');
+    setPose(obj,'happy-seated');
+    if(state.mode.id==='sudden'){
+      const newLevel=Math.floor(state.served/5)+1;
+      if(newLevel>state.level){ state.level=newLevel; levelLabel.textContent='LEVEL '+state.level; showLevelToast(state.level); }
+    }
+    updateHud();
+    checkTurnEnd();
+  }
+
+  function showLevelToast(level){
+    levelToast.textContent=`LEVEL ${level}!`;
+    levelToast.classList.add('show');
+    setTimeout(()=>levelToast.classList.remove('show'),850);
+  }
+
+  function timeoutCustomer(obj,{deferSuddenFinish=false,allowWhenTurnLocked=false}={}){
+    if(obj.done || !state.running || (!state.turnReady && !allowWhenTurnLocked)) return;
+    obj.done=true; obj.success=false; obj.start=0;
+    state.left++; state.handled++; state.turnHadTimeout=true;
+    obj.el.classList.add('angry-wait');
+    setPose(obj,'angry-seated');
+    updateHud();
+
+    // 時間切れになった客は、全員それぞれ怒った状態で入口へ帰る。
+    setTimeout(()=>{
+      if(!obj.el?.isConnected) return;
+      obj.el.classList.remove('angry-wait');
+      obj.el.classList.add('leaving-angry');
+      setPose(obj,'angry-exit');
+      setTimeout(()=>obj.el?.remove(),720);
+    },120);
+
+    if(state.mode.id==='sudden'){
+      if(!deferSuddenFinish){
+        state.turnReady=false;
+        foodGrid.classList.add('waiting');
+        setTimeout(()=>finishSudden(),760);
+      }
+      return;
+    }
+    checkTurnEnd();
+  }
+
+  function checkTurnEnd(){
+    if(!state?.running || state.turnTransitioning) return;
+    const turnCustomers=[...state.customers.values()];
+    if(!turnCustomers.length || turnCustomers.some(obj=>!obj.done)) return;
+    state.turnTransitioning=true;
+    state.turnReady=false;
+    foodGrid.classList.add('waiting');
+
+    const allSucceeded=turnCustomers.every(obj=>obj.success);
+    if(allSucceeded){
+      // 全員分を正しく出せたときだけ、中央に大きな○。
+      showRoundSuccess();
+      setTimeout(()=>exitHappyCustomers(turnCustomers),650);
+      setTimeout(()=>finishTurnAndContinue(),1400);
+    }else{
+      // 途中で帰った客がいる場合は○を出さず、成功済みの客だけ喜んで退出。
+      setTimeout(()=>exitHappyCustomers(turnCustomers),180);
+      setTimeout(()=>finishTurnAndContinue(),900);
+    }
+  }
+
+  function showRoundSuccess(){
+    roundSuccessCircle.classList.remove('show');
+    void roundSuccessCircle.offsetWidth;
+    roundSuccessCircle.classList.add('show');
+    setTimeout(()=>roundSuccessCircle.classList.remove('show'),760);
+  }
+
+  function exitHappyCustomers(turnCustomers){
+    for(const obj of turnCustomers){
+      if(!obj.success || !obj.el?.isConnected) continue;
+      obj.el.classList.remove('happy-seated','angry-wait');
+      obj.el.classList.add('leaving-happy');
+      setPose(obj,'happy-exit');
+      setTimeout(()=>obj.el?.remove(),720);
+    }
+  }
+
+  function finishTurnAndContinue(){
+    if(!state?.running) return;
+    state.customers.clear();
+    state.turnTransitioning=false;
+    if(state.mode.id!=='sudden' && state.handled>=state.mode.target){
+      finishNormal(state.mode.id!=='hard' || state.served>=state.mode.clearNeed);
+      return;
+    }
+    waitingText.textContent='つぎの おきゃくさんが くるよ…';
+    waitingText.classList.add('show');
+    setTimeout(()=>{ if(state?.running) beginTurn(state.token); },500);
+  }
+
+  function finishNormal(cleared){
+    if(!state?.running) return;
+    state.running=false; gameToken++;
+    speechSynthesis?.cancel?.();
+    const m=state.mode;
+    let unlockMsg='';
+    if(cleared){
+      const next={easy:2,normal:3,hard:4}[m.id];
+      if(next && unlocked<next){
+        unlocked=next; localStorage.setItem('worldRestaurantUnlocked',String(unlocked));
+        const nextName=next===2?'ふつう':next===3?'むずかしい':'サドンデス';
+        unlockMsg=`「${nextName}」が あそべるようになった！`;
+      }
+    }
+    $('#resultTitle').textContent=cleared?'クリア！':'もういちど！';
+    $('#resultText').textContent = m.id==='hard' ? `りょうりを ${state.served}人に だしました。${state.left?`\n${state.left}人は かえりました。`:''}` : `りょうりを ${state.served}人に だしました！`;
+    $('#unlockText').textContent=unlockMsg;
+    resultOverlay.classList.add('show');
+    renderMenu();
+  }
+
+  function finishSudden(){
+    if(!state?.running) return;
+    state.running=false; gameToken++;
+    speechSynthesis?.cancel?.();
+    if(state.served>bestSudden){ bestSudden=state.served; localStorage.setItem('worldRestaurantBestSudden',String(bestSudden)); }
+    $('#resultTitle').textContent='きろく！';
+    $('#resultText').textContent=`${state.served}人に りょうりを だしました！\nさいこうきろく：${bestSudden}人`;
+    $('#unlockText').textContent='';
+    resultOverlay.classList.add('show');
+    renderMenu();
+  }
+
+  function showTurnMessage(text,duration=1200){
+    turnMessage.textContent=text;
+    turnMessage.classList.add('show');
+    clearTimeout(state?._turnMessageTimer);
+    if(state) state._turnMessageTimer=setTimeout(()=>turnMessage.classList.remove('show'),duration);
+  }
+
+  function updateHud(){
+    if(!state) return;
+    if(state.mode.id==='sudden'){
+      progressLabel.textContent=`きろく ${state.served}人`;
+      levelLabel.textContent=`LEVEL ${state.level}`;
+    }else if(state.mode.id==='hard'){
+      progressLabel.textContent=`だした ${state.served} / ${state.mode.target}　かえった ${state.left}`;
+    }else{
+      progressLabel.textContent=`だした ${state.served} / ${state.mode.target}`;
+    }
+  }
+
+  function tick(){
+    if(!state || !state.running) return;
+    const now=performance.now();
+    if(state.turnReady && state.mode.timer){
+      const expired=[];
+      for(const obj of [...state.customers.values()]){
+        if(obj.done || !obj.start) continue;
+        const elapsed=(now-obj.start)/1000;
+        const ratio=Math.max(0,1-elapsed/obj.patience);
+        const fill=obj.el.querySelector('.patience-fill');
+        if(fill){
+          fill.style.transform=`scaleX(${ratio})`;
+          fill.style.background = ratio>.5 ? '#47a866' : ratio>.30 ? '#e3b93f' : '#d94a45';
+        }
+        // 残り30％以下になったら、座ったまま怒る。
+        if(ratio<=.30 && ratio>0 && !obj.warning){
+          obj.warning=true;
+          obj.el.classList.add('angry-wait');
+          setPose(obj,'angry-seated');
+        }
+        // 同じフレームで時間切れになった客を先に全員集める。
+        // サドンデスでも、最初の1人だけで処理を止めず、時間切れの全員を退出させる。
+        if(ratio<=0) expired.push(obj);
+      }
+
+      if(expired.length){
+        if(state.mode.id==='sudden'){
+          state.turnReady=false;
+          foodGrid.classList.add('waiting');
+          for(const obj of expired){
+            timeoutCustomer(obj,{deferSuddenFinish:true,allowWhenTurnLocked:true});
+          }
+          setTimeout(()=>finishSudden(),760);
+        }else{
+          for(const obj of expired) timeoutCustomer(obj);
+        }
+      }
+    }
+    animationFrame=requestAnimationFrame(tick);
+  }
+
+  function goTitle(){
+    gameToken++;
+    if(state) state.running=false;
+    cancelAnimationFrame(animationFrame);
+    speechSynthesis?.cancel?.();
+    resultOverlay.classList.remove('show');
+    gameScreen.classList.remove('active');
+    titleScreen.classList.add('active');
+    renderMenu();
+  }
+
+  $('#backBtn').addEventListener('click',goTitle);
+  $('#resultTitleBtn').addEventListener('click',goTitle);
+  $('#againBtn').addEventListener('click',()=>{
+    const id=state.mode.id;
+    resultOverlay.classList.remove('show');
+    startGame(id);
+  });
+
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden && state?.running){
+      state._pauseStart=performance.now();
+    }else if(state?.running && state._pauseStart){
+      const delta=performance.now()-state._pauseStart;
+      for(const obj of state.customers.values()) if(obj.start) obj.start+=delta;
+      state._pauseStart=0;
+    }
+  });
+
+  renderMenu();
+})();
+</script>
+</body>
+</html>
